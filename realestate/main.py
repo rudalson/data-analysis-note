@@ -1,6 +1,9 @@
+import base64
+import configparser
+import os
+
 import requests
 
-SERVICE_KEY = ""
 HOST = "http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/"
 URLS = {
     'apt-trade': {
@@ -24,31 +27,43 @@ URLS = {
 }
 
 
-def get_data(url, rcode, date):
+def get_data(url, rcode, date, service_key):
     querystring = {
         "pageNo": "1",
         "startPage": "1",
         "numOfRows": "99999",
         "pageSize": "10",
         "LAWD_CD": str(rcode),
-        "DEAL_YMD": date,
-        "type": "json",
-        "serviceKey": SERVICE_KEY}
+        "DEAL_YMD": str(date),
+        "type": "xml",
+        "serviceKey": service_key}
 
-    headers = {
-        'cache-control': "no-cache",
-        'postman-token': "e8d4c5d9-9287-549d-b5bc-9cdd60e76e1d"
+    params = {
+        "LAWD_CD": str(rcode),
+        "DEAL_YMD": str(date),
+        "serviceKey": service_key
     }
-    response = requests.request("GET", url, headers=headers, params=querystring)
+
+    response = requests.request("GET", url, params=params)
     return response
 
 
+def load_service_key():
+    config = configparser.ConfigParser()
+    conf_path = os.path.join(os.path.dirname(__file__), "conf", "config.ini")
+    config.read(conf_path)
+    return config['REAL_ESTATE_TRADE']['service_key']
+
+
 def main():
+    encoded_service_key = load_service_key()
+    service_key = base64.b64decode(encoded_service_key).decode('utf-8')
+    print(service_key)
     apt_trade = URLS.get("apt-trade")
 
-    response = get_data(apt_trade.get("url"), 11110, "201512")
+    response = get_data(apt_trade.get("url"), 11110, 201512, service_key)
 
-    print(response)
+    print(response.content)
 
 
 if __name__ == '__main__':
