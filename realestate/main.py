@@ -1,10 +1,15 @@
-import base64
+#!/usr/bin/env python3
+# coding: utf-8
+import time
 import configparser
 import os
+import pandas as pd
+import xml.etree.ElementTree as ET
 
 import requests
 
 HOST = "http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/"
+
 URLS = {
     'apt-trade': {
         'url': HOST + "getRTMSDataSvcAptTrade?",
@@ -38,14 +43,50 @@ def get_data(url, rcode, date, service_key):
         "type": "xml",
         "serviceKey": service_key}
 
-    params = {
-        "LAWD_CD": str(rcode),
-        "DEAL_YMD": str(date),
-        "serviceKey": service_key
+    headers = {
+        'cache-control': "no-cache",
+        'postman-token': "e8d4c5d9-9287-549d-b5bc-9cdd60e76e1d"
     }
 
-    response = requests.request("GET", url, params=params)
+    response = requests.request("GET", url, headers=headers, params=querystring)
     return response
+
+
+def get_items(response):
+    root = ET.fromstring(response.content)
+    item_list = []
+    for child in root.find('body').find('items'):
+        elements = child.findall('*')
+        data = {}
+        for element in elements:
+            tag = element.tag.strip()
+            text = element.text.strip()
+            # print tag, text
+            data[tag] = text
+        item_list.append(data)
+    return item_list
+
+
+def get_months(year):
+    import datetime
+    import dateutil.relativedelta
+    now = datetime.datetime.now()
+    month = 12
+    if year == now.year:
+        month = datetime.datetime.now().month - 1
+    d = datetime.datetime.strptime(str(year) + str(month), "%Y%m")
+    delta = 1
+    ymd_list = []
+    for idx in range(0, month):
+        ymd_list.append(d.strftime('%Y%m'))
+        d = d - dateutil.relativedelta.relativedelta(months=delta)
+    return ymd_list
+
+
+def get_result_code_msg(response):
+    # print response
+    root = ET.fromstring(response.content)
+    return root.find('header').find('resultCode').text, root.find('header').find('resultMsg').text
 
 
 def load_service_key():
@@ -56,14 +97,44 @@ def load_service_key():
 
 
 def main():
-    encoded_service_key = load_service_key()
-    service_key = base64.b64decode(encoded_service_key).decode('utf-8')
-    print(service_key)
-    apt_trade = URLS.get("apt-trade")
+    try:
+        service_key = load_service_key()
+    except Exception:
+        print("Failed to get the service key")
 
-    response = get_data(apt_trade.get("url"), 11110, 201512, service_key)
+    for sale_type in URLS:
+        print(sale_type)
+        print(URLS[sale_type])
+        url = URLS[sale_type]['url']
 
-    print(response.content)
+    # for date in sorted(get_months("2019")):
+    # sale_type = "apt-trade"
+    # rcode = "11110"
+    # date = "201512"
+    # dir_path = './data/{}/{}'.format(sale_type, rcode)
+    # if not os.path.exists(dir_path):
+    #     os.makedirs(dir_path)
+    # filename = '{}.csv'.format(date)
+    #
+    # apt_trade = URLS.get(sale_type)
+    #
+    # response = get_data(apt_trade.get("url"), rcode, date, service_key)
+    #
+    # try:
+    #     result_code, response_msg = get_result_code_msg(response)
+    # except Exception as e:
+    #     # send_msg_to_slack(sale_type + "," + rcode + "," + date + ": " + str(e))
+    #     # continue
+    #     pass
+    #
+    # item_list = get_items(response)
+    # time.sleep(1)
+    # items = pd.DataFrame.from_dict(item_list)
+    #
+    # items['date'] = date
+    # items.to_csv(os.path.join(dir_path, filename), index=False, encoding='utf8')
+    #
+    # print(response.content)
 
 
 if __name__ == '__main__':
