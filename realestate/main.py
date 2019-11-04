@@ -89,6 +89,25 @@ def get_result_code_msg(response):
     return root.find('header').find('resultCode').text, root.find('header').find('resultMsg').text
 
 
+def get_road_codes():
+    road_codes_file = open("road_codes.csv", "r")
+    lines = [x[:-1].split(',') for x in road_codes_file.readlines()]
+    road_codes = [x[0] for x in lines]
+    road_codes = list(set(road_codes))
+    return road_codes
+
+
+def data_exists(dir_path, filename):
+    import os
+    file_list = os.listdir(dir_path)
+    for f in file_list:
+        # print f, filename
+        if filename in f:
+            print(filename, 'is already exist')
+            return True
+    return False
+
+
 def load_service_key():
     config = configparser.ConfigParser()
     conf_path = os.path.join(os.path.dirname(__file__), "conf", "config.ini")
@@ -102,10 +121,14 @@ def main():
     except Exception:
         print("Failed to get the service key")
 
+    road_codes = get_road_codes()
+
     for sale_type in URLS:
         print(sale_type)
-        print(URLS[sale_type])
         url = URLS[sale_type]['url']
+
+        for rcode in road_codes:
+            print(rcode)
 
     # for date in sorted(get_months("2019")):
     # sale_type = "apt-trade"
