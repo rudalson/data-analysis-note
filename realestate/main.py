@@ -90,10 +90,11 @@ def get_result_code_msg(response):
 
 
 def get_road_codes():
-    road_codes_file = open("road_codes.csv", "r")
-    lines = [x[:-1].split(',') for x in road_codes_file.readlines()]
+    f = open("road_codes.csv", "r")
+    lines = [x[:-1].split(',') for x in f.readlines()]
     road_codes = [x[0] for x in lines]
-    road_codes = list(set(road_codes))
+    road_codes = sorted(list(set(road_codes)))
+    f.close()
     return road_codes
 
 
@@ -115,49 +116,69 @@ def load_service_key():
     return config['REAL_ESTATE_TRADE']['service_key']
 
 
+def save_csv_result(url, road_code, date, service_key, dir_path):
+    filename = '{}.csv'.format(date)
+    if data_exists(dir_path, filename):
+        return "ex", "already exist"
+
+    response = get_data(url, road_code, date, service_key)
+
+    try:
+        result_code, response_msg = get_result_code_msg(response)
+        if '00' != result_code:
+            return result_code, response_msg
+    except Exception as e:
+        # send_msg_to_slack(sale_type + "," + rcode + "," + date + ": " + str(e))
+        # continue
+        raise
+
+    item_list = get_items(response)
+    time.sleep(1)
+    items = pd.DataFrame.from_dict(item_list)
+
+    items['date'] = date
+    items.to_csv(os.path.join(dir_path, filename), index=False, encoding='utf8')
+
+    return result_code, response_msg
+
+
 def main():
     try:
         service_key = load_service_key()
     except Exception:
         print("Failed to get the service key")
+        raise
 
     road_codes = get_road_codes()
 
     for sale_type in URLS:
+        is_limit = False
         print(sale_type)
         url = URLS[sale_type]['url']
 
-        for rcode in road_codes:
-            print(rcode)
+        for road_code in road_codes:
+            print(road_code)
+            for year in ['2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019']:
+                print(year)
+                for date in sorted(get_months(year)):
+                    dir_path = './data/{}/{}'.format(sale_type, road_code)
+                    if not os.path.exists(dir_path):
+                        os.makedirs(dir_path)
 
-    # for date in sorted(get_months("2019")):
-    # sale_type = "apt-trade"
-    # rcode = "11110"
-    # date = "201512"
-    # dir_path = './data/{}/{}'.format(sale_type, rcode)
-    # if not os.path.exists(dir_path):
-    #     os.makedirs(dir_path)
-    # filename = '{}.csv'.format(date)
-    #
-    # apt_trade = URLS.get(sale_type)
-    #
-    # response = get_data(apt_trade.get("url"), rcode, date, service_key)
-    #
-    # try:
-    #     result_code, response_msg = get_result_code_msg(response)
-    # except Exception as e:
-    #     # send_msg_to_slack(sale_type + "," + rcode + "," + date + ": " + str(e))
-    #     # continue
-    #     pass
-    #
-    # item_list = get_items(response)
-    # time.sleep(1)
-    # items = pd.DataFrame.from_dict(item_list)
-    #
-    # items['date'] = date
-    # items.to_csv(os.path.join(dir_path, filename), index=False, encoding='utf8')
-    #
-    # print(response.content)
+                    result_code, response_msg = save_csv_result(url, road_code, date, service_key, dir_path)
+                    if "ex" == result_code:  # already querying
+                        continue
+                    elif '00' != result_code:
+                        print("today is up to limit")
+                        is_limit = True
+                        break
+                    else:
+                        print(date, road_code, "is processed")
+
+                if is_limit:
+                    break
+            if is_limit:
+                break
 
 
 if __name__ == '__main__':
