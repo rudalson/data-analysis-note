@@ -169,7 +169,7 @@ def main():
                     if "ex" == result_code:  # already querying
                         continue
                     elif '00' != result_code:
-                        print("today is up to limit")
+                        print("today is up to limit", result_code, response_msg)
                         is_limit = True
                         break
                     else:
